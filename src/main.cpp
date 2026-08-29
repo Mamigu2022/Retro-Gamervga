@@ -1081,7 +1081,7 @@ IRAM_ATTR void blitLynxRotated(uint16_t *fb) {
         for (int x = 0; x < dstWidth; x++) {
             int srcX = y;
             int srcY = srcHeight - 1 - x;
-            uint16_t pixel = __builtin_bswap16(fb[srcY * srcWidth + srcX]);
+            uint16_t pixel = fb[srcY * srcWidth + srcX];
             writeRawPixelToScanline(dest, xOffset + x, makeRawPixelFromRGB565(pixel));
         }
         for (int x = xOffset + dstWidth; x < 320; x++)
