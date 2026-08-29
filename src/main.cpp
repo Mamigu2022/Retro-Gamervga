@@ -1238,7 +1238,7 @@ void drawMenu() {
     cv->drawText(4, 4, "RETRO-GAMER");
 
     cv->selectFont(&fabgl::FONT_8x8);
-    const char *tabs[] = { "All", "Favs", "Rcnt", "NES", "GB", "SMS", "PCE", "GEN", "SNES", "LNX" };
+    const char *tabs[] = { "All", "Fav", "Rcn", "NES", "GBC", "SMS", "PCE", "GEN", "SNS", "LNX" };
     int tx = 2;
     for (int i = 0; i < VIEW_COUNT; i++) {
         if (i == viewMode) {
@@ -1269,7 +1269,7 @@ void drawMenu() {
     }
     if (filteredCount > 0) {
         cv->setPenColor(C_BRIGHT_GREEN);
-        cv->drawTextFmt(260, 22, "%d/%d", selectedRom + 1, filteredCount);
+        cv->drawTextFmt(260, 8, "%d/%d", selectedRom + 1, filteredCount);
     }
 
     cv->setPenColor(C_BRIGHT_YELLOW);
