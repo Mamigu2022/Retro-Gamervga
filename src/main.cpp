@@ -166,7 +166,7 @@ static uint16_t *pce_last_pal  = nullptr;
 // ============================================================================
 // RGB CONVERSION FUNCTIONS
 // ============================================================================
-inline uint8_t makeRawPixelFromRGB222Components(uint8_t r2, uint8_t g2, uint8_t b2) {
+IRAM_ATTR uint8_t makeRawPixelFromRGB222Components(uint8_t r2, uint8_t g2, uint8_t b2) {
     fabgl::RGB222 rgb;
     rgb.R = r2 & 0x3;
     rgb.G = g2 & 0x3;
@@ -174,14 +174,14 @@ inline uint8_t makeRawPixelFromRGB222Components(uint8_t r2, uint8_t g2, uint8_t 
     return DisplayController.createRawPixel(rgb);
 }
 
-inline uint8_t rgb888_to_rgb222_fabgl(uint8_t r, uint8_t g, uint8_t b) {
+IRAM_ATTR uint8_t rgb888_to_rgb222_fabgl(uint8_t r, uint8_t g, uint8_t b) {
     uint8_t r2 = r >> 6;
     uint8_t g2 = g >> 6;
     uint8_t b2 = b >> 6;
     return (r2 << 4) | (g2 << 2) | b2;
 }
 
-inline uint8_t makeRawPixelFromRGB565(uint16_t rgb565) {
+IRAM_ATTR uint8_t makeRawPixelFromRGB565(uint16_t rgb565) {
     uint8_t r5 = (rgb565 >> 11) & 0x1F;
     uint8_t g6 = (rgb565 >>  5) & 0x3F;
     uint8_t b5 =  rgb565        & 0x1F;
@@ -191,14 +191,14 @@ inline uint8_t makeRawPixelFromRGB565(uint16_t rgb565) {
     return makeRawPixelFromRGB222Components(r2, g2, b2);
 }
 
-uint8_t makeRawPixelFromRGB222(uint8_t rgb222) {
+IRAM_ATTR uint8_t makeRawPixelFromRGB222(uint8_t rgb222) {
     uint8_t r2 = (rgb222 >> 4) & 0x3;
     uint8_t g2 = (rgb222 >> 2) & 0x3;
     uint8_t b2 =  rgb222       & 0x3;
     return makeRawPixelFromRGB222Components(r2, g2, b2);
 }
 
-static void rebuildPCERawCache(uint16_t *pal) {
+IRAM_ATTR void rebuildPCERawCache(uint16_t *pal) {
     for (int i = 0; i < 256; i++) {
         pce_raw_cache[i] = makeRawPixelFromRGB565(pal[i]);
     }
@@ -422,12 +422,12 @@ static view_mode_t viewMode = VIEW_ALL;
 // ============================================================================
 static uint8_t blackRawPixel = 0;
 
-inline void clearScanline(int y) {
+IRAM_ATTR void clearScanline(int y) {
     uint8_t *line = (uint8_t*)DisplayController.getScanline(y);
     if (line) memset(line, 0, 320);
 }
 
-inline void writeRawPixelToScanline(uint8_t *line, int x, uint8_t rawPixel) {
+IRAM_ATTR void writeRawPixelToScanline(uint8_t *line, int x, uint8_t rawPixel) {
     if (!line) return;
     int dword      = x >> 2;
     int byteOffset = ((x & 3) + 2) & 3;
@@ -794,10 +794,10 @@ void addToRecent(const char *path) {
 // --- NES ---
 // Empaqueta 4 píxeles raw en una palabra de 32 bits según formato FabGL VGA222
 // Orden en memoria: [x%4=2][x%4=3][x%4=0][x%4=1]
-static inline uint32_t packPixels4(uint8_t p0, uint8_t p1, uint8_t p2, uint8_t p3) {
+IRAM_ATTR inline uint32_t packPixels4(uint8_t p0, uint8_t p1, uint8_t p2, uint8_t p3) {
     return ((uint32_t)p2) | ((uint32_t)p3 << 8) | ((uint32_t)p0 << 16) | ((uint32_t)p1 << 24);
 }
-static inline uint32_t blackWord4(uint8_t bp) { return packPixels4(bp,bp,bp,bp); }
+IRAM_ATTR inline uint32_t blackWord4(uint8_t bp) { return packPixels4(bp,bp,bp,bp); }
 
 IRAM_ATTR void blitNES(uint8_t *fb) {
     if (!fb) return;
@@ -1109,7 +1109,7 @@ IRAM_ATTR void blitLynx(uint16_t *fb) {
         for (int x = 0; x < xOffset; x++)
             writeRawPixelToScanline(dest, x, blackRawPixel);
         for (int x = 0; x < srcWidth; x++) {
-            uint16_t pixel = __builtin_bswap16(src[x]);
+            uint16_t pixel = src[x];
             writeRawPixelToScanline(dest, xOffset + x, makeRawPixelFromRGB565(pixel));
         }
         for (int x = xOffset + srcWidth; x < 320; x++)
@@ -1497,44 +1497,6 @@ void drawInGameMenu() {
 #define BTN_STAR   0x40000
 #define BTN_POUND  0x80000
 
-// FIX: bluepad32_update() centralizado — ya NO se llama en el loop() externamente
-// para evitar la doble llamada que desestabilizaba el stack BT
-/*void bluepad32_update() {
-#ifdef BT_GAMEPAD_INPUT_BLUEPAD
-    BP32.update();
-    uint32_t b = 0;
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        ControllerPtr ctl = bp32_gamepads[i];
-        if (!ctl || !ctl->isConnected()) continue;
-
-        if (ctl->dpad() & DPAD_UP)    b |= BTN_UP;
-        if (ctl->dpad() & DPAD_DOWN)  b |= BTN_DOWN;
-        if (ctl->dpad() & DPAD_LEFT)  b |= BTN_LEFT;
-        if (ctl->dpad() & DPAD_RIGHT) b |= BTN_RIGHT;
-
-        int16_t lx = ctl->axisX();
-        int16_t ly = ctl->axisY();
-        if (ly < -GP_AXIS_THRESHOLD) b |= BTN_UP;
-        if (ly >  GP_AXIS_THRESHOLD) b |= BTN_DOWN;
-        if (lx < -GP_AXIS_THRESHOLD) b |= BTN_LEFT;
-        if (lx >  GP_AXIS_THRESHOLD) b |= BTN_RIGHT;
-
-        if (ctl->a()) b |= BTN_A;
-        if (ctl->b()) b |= BTN_B;
-        if (ctl->x()) b |= BTN_1;
-        if (ctl->y()) b |= BTN_2;
-
-        if (ctl->miscButtons() & MISC_BUTTON_BACK)   b |= BTN_SEL;
-        if (ctl->miscButtons() & MISC_BUTTON_HOME)   b |= BTN_START;
-        if (ctl->miscButtons() & MISC_BUTTON_SYSTEM) b |= BTN_START;
-
-        if (ctl->l1()) b |= BTN_3;
-        if (ctl->r1()) b |= BTN_4;
-    }
-    gp_buttons = b;
-#endif
-}*/
-
 bool bluepad32_has_gamepad_local() {
 #ifdef BT_GAMEPAD_INPUT_BLUEPAD
     return bluepad32_has_gamepad();
@@ -1859,7 +1821,7 @@ void EmulatorTask(void *pvParameters) {
                 default: break;
             }
 
-            /*tFrames++;
+            tFrames++;
             if (micros() - tReport > 5000000) {
                 Serial.printf("[PERF] frames=%lu emu=%luus/f blit=%luus/f total=%luus/f fps=%.1f\n",
                     tFrames,
@@ -1869,7 +1831,7 @@ void EmulatorTask(void *pvParameters) {
                     tFrames * 1000000.0f / (micros() - tReport));
                 tEmuUs = tBlitUs = tFrames = 0;
                 tReport = micros();
-            }*/
+            }
 
             frameCounter++;
 
